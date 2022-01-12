@@ -1,0 +1,143 @@
+---
+title: "Rendu TP Noté"
+author: "Birane BA"
+date: "1/07/2022"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Voici le lien de mon répertoire GitHub pour avoir accès au code :
+https://github.com/birane906/R-gression-Scoring
+
+```{r}
+library(ggplot2)
+```
+# Introduction
+Le sujet à traiter est Fish. Nous disposons d’un jeu de données contenant les mesures des caractéristiques physiques de différents poissons. 
+Nous avons les variables suivantes : 
+- Species : prend la valeur 1 si l’individu appartient à l’espèce à étudier 0 sinon 
+- Weight : pour le poids de l’individu étudié 
+- Height : pour la taille de l'individu étudié 
+- Width : pour la largeur de l’individu étudié 
+L’objectif est de prédire l’espèce d’un poisson donné en fonction de leur mensuration.
+
+
+# Lecture des données
+Etant donné que notre dataset est sous la forme d'un fichier csv, j'ai utilisé la fonction read.csv() de R pour lire les données. J'ai précisé le séparateur adéquat pour mon jeu de données afin de l'ouvrir correctement.
+```{r warning=FALSE}
+Fish <- read.csv("/cloud/project/Fish.csv", sep=";")
+```
+
+# Analyse des données
+## Résumé des données
+J'ai tout d'abord affiché les premières valeurs de mon dataset grâce à la fonction head() pour vérifier si l'importation s'est bien passée.
+```{r warning=FALSE}
+head(Fish)
+```
+Par la suite, on a grâce aux fonctions str() et summary() le résumé statistique de l'ensemble de mes données. 
+```{r warning=FALSE}
+str(Fish)
+summary(Fish)
+```
+Nous remarquons qu'on a que des variables numériques. Comme dit dans l'énoncé de ce TP, la variable Species peut prendre que les valeurs 0 ou 1. Donc, nous allons par la suite représenter cette variable graphiquement pour mieux la comprendre.
+
+## Représentations graphiques des variables
+### Représentation graphiques de la variable à expliquer
+Ce graphe ci-dessous représente la répartition des différentes espèces des poissons.
+```{r warning=FALSE}
+library(ggplot2)
+ggplot(Fish) + geom_bar(aes(x = as.factor(Species))) + xlab("Espèce des poissons") + ylab("Nombre d'individus")+ ggtitle("Répartition des poissons selon leur espèce") + labs(fill="Species")+ theme_bw()
+```
+
+### Représentation graphiques des variables explicatives
+#### Poids des poissons
+```{r warning=FALSE}
+ggplot(Fish, aes(x = Weight)) + geom_histogram(color="pink", fill="darkgreen") + xlab("Poids des poissons") + ylab("Nombre d'individus")+ ggtitle("Répartition des poids des poissons") + labs(fill="Weight")+ theme_bw()
+```
+
+
+
+
+### Taille des poissons
+```{r warning=FALSE}
+ggplot(Fish, aes(x = Height)) + geom_histogram(color="yellow", fill="blue") + xlab("Taille des poissons") + ylab("Nombre d'individus")+ ggtitle("Répartition de la taille des poissons") + labs(fill="Height")+ theme_bw()
+```
+
+#### Largeur des poissons
+```{r warning=FALSE}
+ggplot(Fish, aes(x = Width)) + geom_histogram(color="blue", fill="pink") + xlab("Largeur des poissons") + ylab("Nombre d'individus")+ ggtitle("Répartition de la largeur des poissons") + labs(fill="Width")+ theme_bw()
+```
+
+# Prédiction de l'espèce des poissons
+Afin de mettre en place notre modèle de prédiction, nous allons tout d'abord séparer notre dataset en 2 parties : une pour l'apprentissage et l'autre pour le test.
+
+## Séparation des données
+L'échantillon d'aprentissage contiendra 70% de nos données. Elle permettra d'apprendre les données.
+Celui de test contiendra les 30% restants et nous servira à tester les performances de prédictions de notre modèle.
+```{r}
+# taille échantillon
+n <- nrow(Fish)
+# indices des individus dans l'échantillon d'apprentissage
+train_index <- sample(x = 1:n, size = round(0.7 * n), replace = FALSE)
+# train et test sets
+train_data <- Fish[train_index,]
+test_data <- Fish[-train_index,]
+```
+
+## Apprentissage du modèle
+On va prédire l'espèce d'un poisson à l'aide des mesures de ses caractéristiques physiques. Nous allons utiliser les sélections Forward et Backward pour voir la combinaison de quelles caractéristiques physiques nous donne plus d'informations.
+
+
+### Sélection Forward
+Avec cette méthode de sélection, on part d'un modèle qui est vide. On ajoute des attributs au fur et à mesure un par un afin de terminer avec un modèle qui est complet. 
+```{r warning=FALSE}
+# le modèle de base est le modèle nul (celui avec uniquement un intercept)
+log_reg0 <- glm(Species ~ 1, data = train_data, family="binomial")
+# la regression forward part du modèle nul et l'enrichit
+forward_sel <- step(log_reg0, direction="forward", 
+                    scope=list(lower=log_reg0, upper=~Weight+Height+Width))
+```
+```{r warning=FALSE}
+summary(forward_sel)
+```
+```{r warning=FALSE}
+hat_pi <- predict(forward_sel, newdata = test_data, type = "response")
+hat_y <- as.integer(hat_pi > 0.5)
+```
+
+
+
+### Sélection Backward
+Même principe que le Forward sauf qu'ici, on part du modèle complet et on diminue les variables une par une
+```{r warning=FALSE}
+log_reg1 <- glm(Species ~ ., data = train_data, family="binomial")
+back_sel <- step(log_reg1, direction="backward")
+summary(back_sel)
+```
+
+
+```{r warning=FALSE}
+hat_pi1 <- predict(back_sel, newdata = test_data, type = "response")
+hat_y1 <- as.integer(hat_pi1 > 0.5)
+```
+
+
+### Bilan sur les différentes méthodes de sélection
+Nous remarquons que toutes les 2 méthodes de sélection donnent le même résultat : la combinaison des variables Height et Weight nous donne de meilleurs résultats.
+
+
+### Elaboration de la matrice de confusion
+```{r warning=FALSE}
+library(caret)
+confusionMatrix(data = as.factor(hat_y), reference = as.factor(test_data$Species), positive = "1")
+
+```
+Nous pouvons dire qu'on a un très bon modèle car nous avons une accuracy bien élevée. Il y a peu d'erreurs c'est-à-dire de poissons mal classés.
+Par contre, en ayant exécuté le script Rmarkdown plusieurs fois, j'ai remarqué un changement qui peut parfois être important de l'accuracy qui reste tout de même élevé. Cela est peut-être dû à la faible quantité de données dont nous disposons.
+
